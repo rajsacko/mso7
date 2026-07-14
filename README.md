@@ -21,32 +21,18 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Voiceover is **microphone only** (no AI TTS).
 
-## Deploy (leave Vercel)
+## Deploy (Coolify + Docker — recommended)
 
-This app writes to `data/` and runs Remotion + Chromium in-process. Plain serverless (Vercel / Cloudflare) is a poor fit.
+**Do not use Vercel for studio.** Disk is ephemeral → New piece works, then `/studio/...` 404s.
 
-**Recommended:** Hetzner CX22-class (~2–4 GB RAM) + [Coolify](https://coolify.io), or any Docker host with a persistent volume.
-
-### Docker
+Full Coolify steps (auto-redeploy on `git push`): see **[DEPLOY.md](./DEPLOY.md)**.
 
 ```bash
 docker compose up -d --build
 ```
 
-- App: port `3000`  
-- Volume: `mso7-data` → `/app/data` (projects, uploads, brand, renders)  
-- Env: provide `.env.local` with `OPENAI_API_KEY` if you need caption extract  
-
-### Coolify on Hetzner (short)
-
-1. Create a Hetzner CX22 (or similar, 4 GB RAM preferred for export).  
-2. Install Coolify; create a new service from this repo.  
-3. Build with the included `Dockerfile`.  
-4. Attach a persistent volume at `/app/data`.  
-5. Set env vars from `.env.example`; expose HTTPS.  
-6. Keep **one** always-on instance (do not horizontal-scale until you move `data/` to object storage).  
-
-Fly.io / Railway also work if you attach a volume and size the machine for Chromium (~2–4 GB RAM). Free idle tiers are usually too small for export.
+- Port `3000`, volume → `/app/data`  
+- Repo: https://github.com/rajsacko/mso7
 
 ## Notes
 

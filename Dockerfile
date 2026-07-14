@@ -1,7 +1,19 @@
-# MSO7 / Maison Edit — always-on Node host for Remotion encode + local data/
-FROM node:20-bookworm-slim
+# MSO7 — Coolify / Docker host (always-on Node + Chromium + persistent /app/data)
+FROM node:20-bookworm-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Chromium / compositor deps for @remotion/renderer
+FROM node:20-bookworm-slim AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+FROM node:20-bookworm-slim AS runner
+WORKDIR /app
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     fonts-liberation \
@@ -23,25 +35,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxss1 \
     libxtst6 \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_SKIP_DOWNLOAD=true \
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0 \
+    PUPPETEER_SKIP_DOWNLOAD=true \
     REMOTION_CHROME_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production \
-    PORT=3000
+    DATA_ROOT=/app/data
 
-WORKDIR /app
+COPY --from=builder /app/package.json /app/package-lock.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.ts ./
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/remotion.config.ts ./
 
-COPY package.json package-lock.json ./
-RUN npm ci
+RUN mkdir -p /app/data/projects /app/data/uploads /app/data/brand /app/data/renders \
+    && chown -R node:node /app
 
-COPY . .
-RUN npm run build
-
-# Persist projects, uploads, brand, renders outside the container
-RUN mkdir -p /app/data/projects /app/data/uploads /app/data/brand /app/data/renders
-VOLUME ["/app/data"]
-
+USER node
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:3000/ || exit 1
 
 CMD ["npm", "start"]

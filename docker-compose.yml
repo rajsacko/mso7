@@ -1,23 +1,25 @@
-# Local / Coolify-friendly stack: always-on studio + persistent data volume.
-# Coolify: import this compose or deploy the Dockerfile with a volume at /app/data
+# Coolify: set Base Directory = / and use this compose, OR deploy Dockerfile alone
+# with a persistent volume mounted at /app/data
 services:
   mso7:
     build: .
     ports:
       - "3000:3000"
-    env_file:
-      - .env.local
     environment:
       - NODE_ENV=production
+      - DATA_ROOT=/app/data
       - MAX_RENDER_SECONDS=${MAX_RENDER_SECONDS:-180}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - REMOTION_CHROME_EXECUTABLE_PATH=/usr/bin/chromium
     volumes:
       - mso7-data:/app/data
     restart: unless-stopped
-    # Remotion export needs RAM — size the host ~2–4GB
-    deploy:
-      resources:
-        reservations:
-          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
 volumes:
   mso7-data:
