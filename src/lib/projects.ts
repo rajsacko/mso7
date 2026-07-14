@@ -79,19 +79,23 @@ function projectPath(id: string) {
 }
 
 export async function listProjects(): Promise<Project[]> {
-  await ensureDataDirs();
-  const { promises: fs } = await import("fs");
-  const files = await fs.readdir(PROJECTS_DIR);
-  const projects: Project[] = [];
-  for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-    const project = await readJsonFile<Project>(path.join(PROJECTS_DIR, file));
-    if (project) projects.push(normalizeProjectData(project));
+  try {
+    await ensureDataDirs();
+    const { promises: fs } = await import("fs");
+    const files = await fs.readdir(PROJECTS_DIR);
+    const projects: Project[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const project = await readJsonFile<Project>(path.join(PROJECTS_DIR, file));
+      if (project) projects.push(normalizeProjectData(project));
+    }
+    return projects.sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+  } catch {
+    return [];
   }
-  return projects.sort(
-    (a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
 }
 
 export async function getProject(id: string): Promise<Project | null> {
