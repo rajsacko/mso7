@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+data/uploads
+data/renders
+data/projects
+data/brand
+.env.local
+*.md
+.cursor
+out

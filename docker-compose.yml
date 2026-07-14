@@ -1,0 +1,23 @@
+# Local / Coolify-friendly stack: always-on studio + persistent data volume.
+# Coolify: import this compose or deploy the Dockerfile with a volume at /app/data
+services:
+  mso7:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production
+      - MAX_RENDER_SECONDS=${MAX_RENDER_SECONDS:-180}
+    volumes:
+      - mso7-data:/app/data
+    restart: unless-stopped
+    # Remotion export needs RAM — size the host ~2–4GB
+    deploy:
+      resources:
+        reservations:
+          memory: 2G
+
+volumes:
+  mso7-data:
