@@ -25,17 +25,57 @@ import type {
   TransitionId,
 } from "../../lib/types";
 import { TRANSITION_META } from "../../lib/types";
+import { textOverlayChrome } from "../../lib/overlayChrome";
 import {
   FPS,
   clipsTimelineFrames,
   usableClipDurationMs,
 } from "../../lib/timeline";
+import { duckedMusicVolume } from "../../lib/audioMix";
 import { CaptionOverlay, LowerThird } from "./OverlayElements";
 import { LookGrade, lookFilter } from "./LookGrade";
 import { RemotionFontLoader } from "./RemotionFontLoader";
-import { getCaptionAtMs } from "../types";
+import { getCaptionSegmentAtMs } from "../types";
 
 export { clipsTimelineFrames };
+
+function MusicBed({
+  src,
+  musicFrom,
+  musicVolume,
+  voiceOverUrl,
+  voiceOverStartMs,
+  voiceOverEndMs,
+  timelineFrames,
+}: {
+  src: string;
+  musicFrom: number;
+  musicVolume: number;
+  voiceOverUrl?: string;
+  voiceOverStartMs: number;
+  voiceOverEndMs: number;
+  timelineFrames: number;
+}) {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const absMs = ((musicFrom + frame) / fps) * 1000;
+  const voEnd =
+    voiceOverEndMs > voiceOverStartMs
+      ? voiceOverEndMs
+      : (timelineFrames / fps) * 1000;
+  return (
+    <Audio
+      src={src}
+      volume={duckedMusicVolume(
+        absMs,
+        musicVolume,
+        voiceOverStartMs,
+        voEnd,
+        Boolean(voiceOverUrl),
+      )}
+    />
+  );
+}
 
 /** True fade-through-black (crossfade labels use plain fade). */
 function FadeThroughBlackPresentation({
@@ -96,6 +136,7 @@ export function ClipReel({
   brand,
   lowerThird,
   captions,
+  showCaptions = true,
   showLowerThird = false,
   musicUrl,
   voiceOverUrl,
@@ -105,11 +146,17 @@ export function ClipReel({
   musicStartMs = 0,
   musicEndMs = 0,
   musicVolume = 0.22,
+  voiceOverStartMs = 0,
+  voiceOverEndMs = 0,
+  voiceOverVolume = 1,
+  hook = "",
+  showTitle = false,
 }: {
   clips: ProjectClip[];
   brand: BrandKit;
   lowerThird: string;
   captions: CaptionSegment[];
+  showCaptions?: boolean;
   showLowerThird?: boolean;
   musicUrl?: string;
   voiceOverUrl?: string;
@@ -119,6 +166,11 @@ export function ClipReel({
   musicStartMs?: number;
   musicEndMs?: number;
   musicVolume?: number;
+  voiceOverStartMs?: number;
+  voiceOverEndMs?: number;
+  voiceOverVolume?: number;
+  hook?: string;
+  showTitle?: boolean;
 }) {
   const sorted = [...clips].sort((a, b) => a.order - b.order);
   const timelineFrames = clipsTimelineFrames(sorted, defaultTransition);
@@ -185,16 +237,71 @@ export function ClipReel({
       <TransitionSeries>{seriesChildren}</TransitionSeries>
 
       <Sequence from={0} durationInFrames={timelineFrames}>
-        <TimedCaptions brand={brand} captions={captions} />
+        {showCaptions && captions.length ? (
+          <TimedCaptions brand={brand} captions={captions} />
+        ) : null}
         <OverlayStack overlays={overlays} brand={brand} />
+        {showTitle && hook.trim() ? (
+          <AbsoluteFill style={{ pointerEvents: "none" }}>
+            <div
+              style={{
+                position: "absolute",
+                top: "11%",
+                left: "50%",
+                transform: "translateX(-50%)",
+                fontFamily: brand.displayFont,
+                fontSize: 42,
+                fontWeight: 500,
+                color: "#ffffff",
+                textAlign: "center",
+                maxWidth: "78%",
+                textShadow:
+                  "0 1px 3px rgba(0,0,0,0.7), 0 0 28px rgba(0,0,0,0.35)",
+              }}
+            >
+              {hook}
+            </div>
+          </AbsoluteFill>
+        ) : null}
       </Sequence>
 
       {musicUrl ? (
         <Sequence from={musicFrom} durationInFrames={musicDur}>
-          <Audio src={musicUrl} volume={Math.min(1, Math.max(0, musicVolume))} />
+          <MusicBed
+            src={musicUrl}
+            musicFrom={musicFrom}
+            musicVolume={Math.min(1, Math.max(0, musicVolume))}
+            voiceOverUrl={voiceOverUrl}
+            voiceOverStartMs={voiceOverStartMs}
+            voiceOverEndMs={voiceOverEndMs}
+            timelineFrames={timelineFrames}
+          />
         </Sequence>
       ) : null}
-      {voiceOverUrl ? <Audio src={voiceOverUrl} volume={1} /> : null}
+      {voiceOverUrl ? (
+        <Sequence
+          from={Math.max(0, Math.round((voiceOverStartMs / 1000) * FPS))}
+          durationInFrames={Math.max(
+            1,
+            Math.round(
+              ((Math.max(
+                voiceOverEndMs > voiceOverStartMs
+                  ? voiceOverEndMs
+                  : (timelineFrames / FPS) * 1000,
+                voiceOverStartMs + 200,
+              ) -
+                voiceOverStartMs) /
+                1000) *
+                FPS,
+            ),
+          )}
+        >
+          <Audio
+            src={voiceOverUrl}
+            volume={Math.min(1, Math.max(0, voiceOverVolume))}
+          />
+        </Sequence>
+      ) : null}
     </AbsoluteFill>
   );
 }
@@ -209,8 +316,10 @@ function TimedCaptions({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const ms = (frame / fps) * 1000;
-  const caption = getCaptionAtMs(captions, ms);
-  return <CaptionOverlay brand={brand} text={caption} />;
+  const segment = getCaptionSegmentAtMs(captions, ms);
+  return (
+    <CaptionOverlay brand={brand} segment={segment} text={segment?.text} ms={ms} />
+  );
 }
 
 function OverlayStack({
@@ -274,13 +383,39 @@ function OverlayItem({
     (overlay.kind === "image" || overlay.kind === "logo") &&
     overlay.imageUrl
   ) {
+    const w = overlay.kind === "logo" ? 200 : 420;
+    const maxW = overlay.kind === "logo" ? "42%" : "78%";
+    const tint = overlay.fillColor;
+    if (tint && overlay.kind === "logo") {
+      return (
+        <div style={boxStyle}>
+          <div
+            style={{
+              width: w,
+              maxWidth: maxW,
+              aspectRatio: "3 / 1",
+              minHeight: 48,
+              backgroundColor: tint,
+              WebkitMaskImage: `url(${overlay.imageUrl})`,
+              maskImage: `url(${overlay.imageUrl})`,
+              WebkitMaskSize: "contain",
+              maskSize: "contain",
+              WebkitMaskRepeat: "no-repeat",
+              maskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
+              maskPosition: "center",
+            }}
+          />
+        </div>
+      );
+    }
     return (
       <div style={boxStyle}>
         <Img
           src={overlay.imageUrl}
           style={{
-            width: overlay.kind === "logo" ? 200 : 420,
-            maxWidth: overlay.kind === "logo" ? "42%" : "78%",
+            width: w,
+            maxWidth: maxW,
             height: "auto",
             objectFit: "contain",
             borderRadius: overlay.kind === "image" ? 4 : 0,
@@ -291,21 +426,8 @@ function OverlayItem({
   }
 
   return (
-    <div
-      style={{
-        ...boxStyle,
-        fontFamily: brand.bodyFont,
-        color: brand.background,
-        background:
-          overlay.kind === "badge" ? brand.foreground : "rgba(26,26,26,0.55)",
-        padding: overlay.kind === "badge" ? "14px 22px" : "10px 16px",
-        fontSize: overlay.kind === "badge" ? 34 : 40,
-        letterSpacing: "0.02em",
-        maxWidth: "70%",
-        textAlign: "center",
-      }}
-    >
-      {overlay.text || brand.wordmark}
+    <div style={{ ...boxStyle, ...textOverlayChrome(overlay, brand) }}>
+      {overlay.text || "Type here"}
     </div>
   );
 }

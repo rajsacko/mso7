@@ -3,7 +3,11 @@ import { promises as fs } from "fs";
 import path from "path";
 import { v4 as uuid } from "uuid";
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import {
+  makeCancelSignal,
+  renderMedia,
+  selectComposition,
+} from "@remotion/renderer";
 import { getBrandKit, getProject, saveProject } from "@/lib/projects";
 import {
   ensureDataDirs,
@@ -14,6 +18,10 @@ import {
 import type { RenderJob } from "@/lib/types";
 import { compositionIdFor } from "@/lib/composition";
 import type { CompositionProps } from "@/remotion/types";
+import {
+  clearRenderCancel,
+  registerRenderCancel,
+} from "@/lib/renderCancel";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -76,10 +84,15 @@ export async function POST(req: NextRequest) {
 
   const origin = req.nextUrl.origin;
   const brand = await getBrandKit();
+  const { cancelSignal, cancel } = makeCancelSignal();
+  registerRenderCancel(jobId, cancel);
 
   // Fire-and-forget render (dev/server). Client polls GET /api/render/[id]
   void (async () => {
     try {
+      const latest = await readJsonFile<RenderJob>(jobPath(jobId));
+      if (latest?.status === "cancelled") return;
+
       job = await saveJob({
         ...job,
         status: "rendering",
@@ -127,13 +140,31 @@ export async function POST(req: NextRequest) {
         musicStartMs: project.musicStartMs || 0,
         musicEndMs: project.musicEndMs || 0,
         musicVolume: project.musicVolume ?? 0.22,
+        voiceOverStartMs: project.voiceOverStartMs || 0,
+        voiceOverEndMs: project.voiceOverEndMs || 0,
+        voiceOverVolume: project.voiceOverVolume ?? 1,
+        showTitle: Boolean(project.showTitle && project.hook?.trim()),
+        showCaptionOverlay: Boolean(project.showCaptionOverlay),
       };
 
       const compositionId = compositionIdFor(project.preset, project.format);
+      const chromePath = process.env.REMOTION_CHROME_EXECUTABLE_PATH?.trim();
+      /** Coolify/Docker: system Chromium + GPU-less GL + multi-process Linux. */
+      const dockerBrowser = chromePath
+        ? {
+            browserExecutable: chromePath,
+            chromiumOptions: {
+              enableMultiProcessOnLinux: true,
+              gl: "swangle" as const,
+            },
+          }
+        : {};
+
       const composition = await selectComposition({
         serveUrl,
         id: compositionId,
         inputProps: inputProps as unknown as Record<string, unknown>,
+        ...dockerBrowser,
       });
 
       const filename = `${jobId}.mp4`;
@@ -145,12 +176,11 @@ export async function POST(req: NextRequest) {
         codec: "h264",
         outputLocation: outputPath,
         inputProps: inputProps as unknown as Record<string, unknown>,
-        ...(process.env.REMOTION_CHROME_EXECUTABLE_PATH
-          ? {
-              browserExecutable: process.env.REMOTION_CHROME_EXECUTABLE_PATH,
-            }
-          : {}),
+        cancelSignal,
+        ...dockerBrowser,
         onProgress: async ({ progress }) => {
+          const snap = await readJsonFile<RenderJob>(jobPath(jobId));
+          if (snap?.status === "cancelled") return;
           job = {
             ...job,
             status: "rendering",
@@ -160,6 +190,9 @@ export async function POST(req: NextRequest) {
           await writeJsonFile(jobPath(job.id), job);
         },
       });
+
+      const after = await readJsonFile<RenderJob>(jobPath(jobId));
+      if (after?.status === "cancelled") return;
 
       job = await saveJob({
         ...job,
@@ -174,14 +207,27 @@ export async function POST(req: NextRequest) {
         lastRenderId: job.id,
       });
     } catch (error) {
+      const snap = await readJsonFile<RenderJob>(jobPath(jobId));
+      if (snap?.status === "cancelled") return;
       const message =
         error instanceof Error ? error.message : "Render failed";
+      if (/cancel/i.test(message)) {
+        await saveJob({
+          ...job,
+          status: "cancelled",
+          error: "Cancelled",
+          updatedAt: new Date().toISOString(),
+        });
+        return;
+      }
       await saveJob({
         ...job,
         status: "error",
         error: message.slice(0, 500),
         updatedAt: new Date().toISOString(),
       });
+    } finally {
+      clearRenderCancel(jobId);
     }
   })();
 

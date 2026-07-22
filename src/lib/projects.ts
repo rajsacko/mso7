@@ -34,6 +34,12 @@ export function normalizeProjectData(project: Project): Project {
       ? project.chapterLabels
       : ["Studio", "Client", "Lesson"],
     voiceOver: project.voiceOver ?? { text: "", status: "idle" },
+    voiceOverStartMs: project.voiceOverStartMs ?? 0,
+    voiceOverEndMs: project.voiceOverEndMs ?? 0,
+    voiceOverVolume:
+      typeof project.voiceOverVolume === "number"
+        ? project.voiceOverVolume
+        : 1,
     clips: (project.clips || []).map((clip, order) => ({
       ...clip,
       order: clip.order ?? order,
@@ -153,6 +159,9 @@ export function createProjectInput(input: {
     defaultTransition: "crossfade",
     overlays: [],
     voiceOver: { text: "", status: "idle" },
+    voiceOverStartMs: 0,
+    voiceOverEndMs: 0,
+    voiceOverVolume: 1,
     musicStartMs: 0,
     musicEndMs: 0,
     musicVolume: 0.22,

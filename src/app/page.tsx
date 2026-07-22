@@ -1,11 +1,17 @@
 import Link from "next/link";
+import { LibraryGrid } from "@/components/LibraryGrid";
 import { listProjects } from "@/lib/projects";
-import { FORMAT_SIZES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const projects = await listProjects();
+  const pieces = projects.map((project) => ({
+    id: project.id,
+    title: project.title,
+    format: project.format,
+    clipCount: project.clips.length,
+  }));
 
   return (
     <div className="mso-page">
@@ -19,7 +25,7 @@ export default async function HomePage() {
         </nav>
       </div>
 
-      {projects.length === 0 ? (
+      {pieces.length === 0 ? (
         <section>
           <p className="mso-page-kicker">Maison Sacko · Studio</p>
           <h1>MSO7</h1>
@@ -29,7 +35,7 @@ export default async function HomePage() {
           </p>
           <div className="mso-page-actions">
             <Link href="/new" className="mso-export">
-              New piece
+              <span className="mso-export-label">New piece</span>
             </Link>
             <Link href="/brand" className="mso-btn">
               Brand kit
@@ -37,38 +43,9 @@ export default async function HomePage() {
           </div>
         </section>
       ) : (
-        <>
-          <div className="mso-library-head">
-            <div>
-              <p className="mso-page-kicker">Library</p>
-              <h1 style={{ fontSize: "2.75rem" }}>Your pieces</h1>
-            </div>
-            <Link href="/new" className="mso-export" style={{ width: 160 }}>
-              New piece
-            </Link>
-          </div>
-          <div className="mso-card-grid">
-            {projects.map((project) => (
-              <Link
-                key={project.id}
-                href={`/studio/${project.id}`}
-                className="mso-card"
-              >
-                <div>
-                  <div className="mso-card-title">{project.title}</div>
-                  <div className="mso-card-meta">
-                    {FORMAT_SIZES[project.format].label}
-                  </div>
-                </div>
-                <div className="mso-card-foot">
-                  {project.clips.length} clip
-                  {project.clips.length === 1 ? "" : "s"}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </>
+        <LibraryGrid projects={pieces} />
       )}
+
       <div className="mso-credit">
         <div>Product by Maison Sacko</div>
         <div className="light">Credit: Raj Sacko</div>

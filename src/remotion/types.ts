@@ -37,6 +37,11 @@ export interface CompositionProps {
   musicStartMs?: number;
   musicEndMs?: number;
   musicVolume?: number;
+  voiceOverStartMs?: number;
+  voiceOverEndMs?: number;
+  voiceOverVolume?: number;
+  showTitle?: boolean;
+  showCaptionOverlay?: boolean;
   [key: string]: unknown;
 }
 
@@ -62,4 +67,11 @@ export function clipsDurationFrames(
 export function getCaptionAtMs(captions: CaptionSegment[], ms: number) {
   const hit = captions.find((c) => ms >= c.startMs && ms <= c.endMs);
   return hit?.text ?? "";
+}
+
+export function getCaptionSegmentAtMs(
+  captions: CaptionSegment[],
+  ms: number,
+): CaptionSegment | null {
+  return captions.find((c) => ms >= c.startMs && ms <= c.endMs) ?? null;
 }

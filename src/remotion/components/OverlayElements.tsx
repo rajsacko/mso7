@@ -1,5 +1,6 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
-import type { BrandKit } from "../../lib/types";
+import type { BrandKit, CaptionSegment } from "../../lib/types";
+import { captionChrome } from "../../lib/overlayChrome";
 
 export function fadeInOut(
   frame: number,
@@ -286,33 +287,43 @@ export function ChapterCard({
 export function CaptionOverlay({
   brand,
   text,
+  segment,
+  ms,
 }: {
   brand: BrandKit;
-  text: string;
+  text?: string;
+  segment?: CaptionSegment | null;
+  ms?: number;
 }) {
-  if (!text) return null;
+  const display = (segment?.text || text || "").trim();
+  if (!display) return null;
+  const { wrap, plate } = captionChrome(brand);
+  const words = segment?.words;
+  const hasWords = Boolean(words && words.length > 0 && ms != null);
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: "8%",
-        right: "8%",
-        bottom: "18%",
-        textAlign: "center",
-      }}
-    >
-      <span
-        style={{
-          display: "inline-block",
-          fontFamily: brand.bodyFont,
-          fontSize: 36,
-          lineHeight: 1.35,
-          color: brand.background,
-          backgroundColor: "rgba(26,26,26,0.72)",
-          padding: "14px 22px",
-        }}
-      >
-        {text}
+    <div style={wrap}>
+      <span style={{ ...plate, pointerEvents: "auto" }}>
+        {hasWords
+          ? words!.map((w, i) => {
+              const active = ms! >= w.startMs && ms! <= w.endMs;
+              const spoken = ms! >= w.startMs;
+              const label = w.word.replace(/^\s+/, "");
+              return (
+                <span
+                  key={`${w.startMs}-${i}`}
+                  style={{
+                    color: active ? brand.accent || "#ffffff" : "#ffffff",
+                    opacity: spoken ? 1 : 0.42,
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {i > 0 && !/^[.,!?']/.test(label) ? " " : ""}
+                  {label}
+                </span>
+              );
+            })
+          : display}
       </span>
     </div>
   );

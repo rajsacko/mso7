@@ -16,6 +16,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
+    ffmpeg \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -44,7 +45,8 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PUPPETEER_SKIP_DOWNLOAD=true \
     REMOTION_CHROME_EXECUTABLE_PATH=/usr/bin/chromium \
-    DATA_ROOT=/app/data
+    DATA_ROOT=/app/data \
+    REMOTION_GL=swangle
 
 COPY --from=builder /app/package.json /app/package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules

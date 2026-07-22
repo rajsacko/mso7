@@ -104,21 +104,23 @@ export function useProjectSession(
   );
 
   const undo = useCallback(() => {
-    if (indexRef.current <= 0) return;
+    if (indexRef.current <= 0) return false;
     indexRef.current -= 1;
     const snap = cloneProject(historyRef.current[indexRef.current]);
     setProjectState(snap);
     enqueueSave(snap);
     syncFlags();
+    return true;
   }, [enqueueSave, syncFlags]);
 
   const redo = useCallback(() => {
-    if (indexRef.current >= historyRef.current.length - 1) return;
+    if (indexRef.current >= historyRef.current.length - 1) return false;
     indexRef.current += 1;
     const snap = cloneProject(historyRef.current[indexRef.current]);
     setProjectState(snap);
     enqueueSave(snap);
     syncFlags();
+    return true;
   }, [enqueueSave, syncFlags]);
 
   return {

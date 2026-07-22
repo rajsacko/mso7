@@ -1,9 +1,13 @@
 "use client";
 
+import { formatTimecode } from "@/lib/timeline";
+
 export function StudioTransport({
   muted,
   playing,
   isFullscreen,
+  playheadMs,
+  timelineMs,
   onToggleMute,
   onTogglePlay,
   onToggleFullscreen,
@@ -11,6 +15,8 @@ export function StudioTransport({
   muted: boolean;
   playing: boolean;
   isFullscreen: boolean;
+  playheadMs: number;
+  timelineMs: number;
   onToggleMute: () => void;
   onTogglePlay: () => void;
   onToggleFullscreen: () => void;
@@ -33,6 +39,11 @@ export function StudioTransport({
       >
         <img src={playing ? "/icons/pause.svg" : "/icons/play.svg"} alt="" />
       </button>
+      <span className="mso-transport-time" aria-live="polite">
+        {formatTimecode(playheadMs)}
+        <span className="mso-tl-time-sep">/</span>
+        {formatTimecode(timelineMs)}
+      </span>
       <button
         type="button"
         className="mso-icon-btn"

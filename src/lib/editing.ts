@@ -74,7 +74,7 @@ export function createOverlay(input: {
       input.text ||
       (input.kind === "logo" || input.kind === "image" || input.kind === "video"
         ? ""
-        : "Maison Sacko"),
+        : "Type here"),
     imageUrl: input.imageUrl,
     videoUrl: input.videoUrl,
     anchor: input.anchor || defaults.anchor,
@@ -84,6 +84,11 @@ export function createOverlay(input: {
     opacity: 1,
     startMs: 0,
     endMs: input.durationMs || 12000,
+    fontFamily: input.kind === "text" || input.kind === "badge" ? "Cabinet Grotesk" : undefined,
+    fontSize: input.kind === "badge" ? 28 : input.kind === "text" ? 36 : undefined,
+    color: input.kind === "text" || input.kind === "badge" ? "#ffffff" : undefined,
+    hasPlate: input.kind === "badge",
+    fillColor: input.kind === "logo" ? "#ffffff" : undefined,
   };
 }
 

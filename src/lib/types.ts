@@ -74,12 +74,17 @@ export interface ProjectClip {
   id: string;
   name: string;
   url: string;
+  /** Pre-enhance media URL — restore original camera audio from this */
+  originalUrl?: string;
   durationMs: number;
   trimStartMs: number;
   trimEndMs: number;
   order: number;
   /** Transition used when leaving this clip into the next */
   transitionOut: TransitionId;
+  /** True when url points at noise-reduced remux */
+  audioEnhanced?: boolean;
+  enhanceStrength?: "light" | "medium" | "strong";
 }
 
 export interface ProjectOverlay {
@@ -97,11 +102,22 @@ export interface ProjectOverlay {
   opacity: number;
   startMs: number;
   endMs: number;
+  /** Text styling */
+  fontFamily?: string;
+  fontSize?: number;
+  color?: string;
+  /** Soft chip behind text (off by default — luxury type uses shadow only) */
+  hasPlate?: boolean;
+  /** SVG / logo tint (CSS color; applied as fill / filter) */
+  fillColor?: string;
 }
 
 export interface VoiceOver {
   text: string;
   url?: string;
+  /** Pre-enhance VO file for restore */
+  originalUrl?: string;
+  audioEnhanced?: boolean;
   voiceId?: string;
   status: "idle" | "generating" | "ready" | "error";
   error?: string;
@@ -130,6 +146,11 @@ export interface Project {
   lookId: LookId;
   defaultTransition: TransitionId;
   voiceOver: VoiceOver;
+  /** Voice take placement on timeline */
+  voiceOverStartMs: number;
+  voiceOverEndMs: number;
+  /** 0–1 */
+  voiceOverVolume: number;
   musicUrl?: string;
   musicName?: string;
   /** Music bed placement on timeline */
@@ -145,7 +166,7 @@ export interface Project {
 export interface RenderJob {
   id: string;
   projectId: string;
-  status: "queued" | "rendering" | "ready" | "error";
+  status: "queued" | "rendering" | "ready" | "error" | "cancelled";
   progress: number;
   outputUrl?: string;
   error?: string;

@@ -1,56 +1,105 @@
-# Deploy MSO7 on Coolify (clean path — leave Vercel)
+# Deploy MSO7 / Maison Edit — Coolify + Docker on Hetzner
 
-Vercel shows library/studio **404** because projects are stored on disk and serverless `/tmp` does not persist. Coolify + Docker keeps one always-on container with a **volume** at `/app/data`.
+This app needs **one always-on Node process + Chromium (Remotion) + ffmpeg + disk**.  
+Do **not** use Vercel/Netlify. Local `npm run dev` is for craft; production is Docker.
 
-**Repo:** https://github.com/rajsacko/mso7
-
----
-
-## 1. Server (once)
-
-1. Create a **Hetzner Cloud CX22** (or similar): **4 GB RAM** preferred for Remotion export.  
-2. Install [Coolify](https://coolify.io/docs/installation) on that VPS.  
-3. Point a domain (optional) at the server IP in Coolify.
+**Repo:** https://github.com/rajsacko/mso7  
+**Recommended host:** Hetzner Cloud **CX22** (~€4–5/mo, 2 vCPU / 4 GB) + [Coolify](https://coolify.io)
 
 ---
 
-## 2. App in Coolify (once)
+## 1. Create the VPS (once)
 
-1. Coolify → **New Resource** → **Public Repository**  
-2. URL: `https://github.com/rajsacko/mso7`  
-3. Branch: `master`  
-4. Build pack: **Dockerfile** (root `Dockerfile`)  
-   - Or **Docker Compose** using `docker-compose.yml`  
-5. **Persistent storage**  
-   - Mount: host volume → container path `/app/data`  
-6. **Environment** (optional):  
-   - `OPENAI_API_KEY=` (captions only)  
-   - `MAX_RENDER_SECONDS=180`  
-   - `DATA_ROOT=/app/data`  
-7. Port: **3000**  
-8. Enable **HTTPS** + **Auto deploy on push** (GitHub webhook / Coolify Git integration).  
-9. Deploy.
-
-After this, every `git push` to `master` can **redeploy** automatically.
+1. Sign up at [Hetzner Cloud](https://www.hetzner.com/cloud).
+2. **New project** → **Add server**:
+   - Location: closest to you / clients
+   - Image: **Ubuntu 24.04**
+   - Type: **CX22** (4 GB RAM — minimum for Remotion export)
+   - SSH key: add yours
+3. Create the server. Note the **public IPv4**.
+4. In the Hetzner firewall (or leave Coolify to manage): allow **22**, **80**, **443**.
 
 ---
 
-## 3. Day-to-day
+## 2. Install Coolify (once)
+
+SSH in:
 
 ```bash
-# after local changes
+ssh root@YOUR_SERVER_IP
+```
+
+Install Coolify (official installer):
+
+```bash
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+```
+
+Open `http://YOUR_SERVER_IP:8000`, create the admin account, and finish the wizard.  
+Optional: attach a domain to Coolify itself later.
+
+Docs: https://coolify.io/docs/installation
+
+---
+
+## 3. Deploy MSO7 in Coolify (once)
+
+1. Coolify → **+ New Resource** → **Public Repository** (or GitHub App if you prefer private later).
+2. Repository URL: `https://github.com/rajsacko/mso7`
+3. Branch: **`master`**
+4. Build pack:
+   - **Dockerfile** (root `Dockerfile`) — simplest  
+   - **or** Docker Compose → `docker-compose.yml` (volume already defined)
+5. **Persistent storage** (required if using Dockerfile alone):
+   - Add a volume: host path or Coolify volume → container path **`/app/data`**
+6. **Environment variables**:
+
+| Key | Value |
+|-----|--------|
+| `OPENAI_API_KEY` | your key (captions from speech) |
+| `MAX_RENDER_SECONDS` | `180` |
+| `DATA_ROOT` | `/app/data` |
+| `REMOTION_CHROME_EXECUTABLE_PATH` | `/usr/bin/chromium` |
+
+7. **Ports:** expose container **3000** (Coolify HTTP/HTTPS proxy).
+8. Domain: assign a domain → enable **HTTPS**.
+9. Enable **Auto Deploy** on push to `master`.
+10. **Deploy**. First build installs Chromium + ffmpeg — expect several minutes.
+
+After this, every `git push origin master` can redeploy automatically.  
+`/app/data` keeps projects, uploads, brand kit, and renders across deploys.
+
+---
+
+## 4. Smoke test (after green deploy)
+
+On the live HTTPS URL:
+
+1. **Library** → New piece → upload a short phone/camera clip.
+2. Select the clip → **Edit → Audio** → Medium → **Reduce noise on clip** → play and listen.
+3. **Captions** → language → **Generate from speech** → confirm lines + karaoke highlight while playing.
+4. **Export** → wait for progress → **Download** MP4.
+5. Refresh the page → project still listed (volume persistence).
+
+If export fails with Chromium errors: confirm `REMOTION_CHROME_EXECUTABLE_PATH=/usr/bin/chromium` and that the container has ≥4 GB RAM.
+
+---
+
+## 5. Day-to-day
+
+```bash
 git add -A
 git commit -m "your message"
 git push origin master
 ```
 
-Coolify rebuilds and restarts. `/app/data` volume keeps projects, uploads, brand, and renders.
+Coolify rebuilds and restarts. Data volume is untouched.
 
 ---
 
-## 4. Stop using Vercel for this app
+## 6. Stop using Vercel
 
-In Vercel, you can remove or pause `mso7` so you only use Coolify. Studio will work on the Coolify URL (HTTPS domain you assign).
+Pause or remove any old Vercel `mso7` project so traffic only hits Coolify.
 
 ---
 
@@ -58,8 +107,9 @@ In Vercel, you can remove or pause `mso7` so you only use Coolify. Studio will w
 
 | Item | Value |
 |------|--------|
-| Image | Dockerfile (multi-stage) |
+| Image | Multi-stage `Dockerfile` (Node 20 + Chromium + ffmpeg) |
 | Listen | `0.0.0.0:3000` |
 | Data | `/app/data` volume |
-| Chrome | `/usr/bin/chromium` for Remotion |
+| Chrome | `/usr/bin/chromium` (Docker-hardened Remotion options) |
 | Instances | **1** (do not scale horizontally yet) |
+| Compose | Optional — see `docker-compose.yml` |

@@ -29,6 +29,16 @@ export function totalTimelineMs(
 
 export function captionAtMs(captions: CaptionSegment[], ms: number) {
   const index = captions.findIndex((c) => ms >= c.startMs && ms <= c.endMs);
-  if (index < 0) return { index: -1, text: "" };
-  return { index, text: captions[index].text };
+  if (index < 0) return { index: -1, text: "", segment: null as CaptionSegment | null };
+  return { index, text: captions[index].text, segment: captions[index] };
+}
+
+/** Karaoke-style active word index within a segment (-1 if none). */
+export function activeCaptionWordIndex(
+  segment: CaptionSegment | null | undefined,
+  ms: number,
+) {
+  const words = segment?.words;
+  if (!words?.length) return -1;
+  return words.findIndex((w) => ms >= w.startMs && ms <= w.endMs);
 }

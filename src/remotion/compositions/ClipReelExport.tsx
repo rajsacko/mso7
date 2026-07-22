@@ -11,6 +11,7 @@ export const ClipReelExport: FC<CompositionProps> = (props) => {
       lowerThird={props.lowerThird}
       showLowerThird={Boolean(props.lowerThird?.trim())}
       captions={props.captions}
+      showCaptions={props.showCaptionOverlay !== false}
       musicUrl={props.musicUrl}
       voiceOverUrl={props.voiceOverUrl}
       lookId={props.lookId || "none"}
@@ -19,13 +20,19 @@ export const ClipReelExport: FC<CompositionProps> = (props) => {
       musicStartMs={props.musicStartMs || 0}
       musicEndMs={props.musicEndMs || 0}
       musicVolume={props.musicVolume ?? 0.22}
+      voiceOverStartMs={props.voiceOverStartMs || 0}
+      voiceOverEndMs={props.voiceOverEndMs || 0}
+      voiceOverVolume={props.voiceOverVolume ?? 1}
+      hook={props.hook}
+      showTitle={Boolean(props.showTitle)}
     />
   );
 };
 
 export function clipReelExportDuration(props: CompositionProps) {
+  /* Must match studio timelineMs — no padded 90-frame floor (desyncs playhead). */
   return Math.max(
-    90,
+    1,
     clipsDurationFrames(props.clips, props.defaultTransition || "crossfade"),
   );
 }
